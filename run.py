@@ -40,7 +40,7 @@ if __name__ == "__main__":
         t.append(["|".join(
             [
                 "",
-                coin+("　" if len(coin)==3 else ""),
+                coin+(" " if len(coin)==3 else ""),
                 calcprofit(coin,1, yearly=False),
                 calcprofit(coin,7),
                 calcprofit(coin,30),
