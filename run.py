@@ -40,7 +40,7 @@ if __name__ == "__main__":
         t.append(["|".join(
             [
                 "",
-                coin+(" " if len(coin)==3 else ""),
+                coin+("　" if len(coin)==3 else ""),
                 calcprofit(coin,1, yearly=False),
                 calcprofit(coin,7),
                 calcprofit(coin,30),
@@ -51,6 +51,6 @@ if __name__ == "__main__":
     t.sort(key=lambda i:i[1])
     text += "\n".join([i[0] for i in t])
     text = text.replace("|"," | ").replace("----","").replace(" \n ","\n\n")
-    print(text)
+    print(text.replace("\n\n","\n"))
     title = "[套利收益率] "+status
     b.markdown(title,text)
