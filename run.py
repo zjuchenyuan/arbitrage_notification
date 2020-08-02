@@ -1,4 +1,4 @@
-COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH"]
+COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO"]
 import requests, os, sys, time
 from decimal import Decimal
 from functools import lru_cache
