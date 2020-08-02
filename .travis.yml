@@ -1,0 +1,18 @@
+version: ~> 1.0
+
+language: python
+
+env:
+  global:
+    - PYTHONIOENCODING: utf8
+
+python:
+  - '3.8'
+
+before_install:
+  - pip install -U requests
+
+
+script: 
+  - python run.py
+
