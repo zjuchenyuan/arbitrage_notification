@@ -54,14 +54,15 @@ def calc_fullprofit(coin):
 
 if __name__ == "__main__":
     #main()
-    data=[]
-    for i in "BTC ETH EOS LINK BCH BSV LTC XRP ETC TRX ADA ATOM IOTA NEO ONT XLM XMR DASH ZEC".split(" "):
-        profit, length = calc_fullprofit(i)
-        data.append([i, profit, length])
-    data.sort(key=lambda i:i[1], reverse=True)
-    for i,profit,length in data:
-        print("",i, profit, length,"", sep="|")
-    exit()
+    if 0:
+        data=[]
+        for i in "BTC ETH EOS LINK BCH BSV LTC XRP ETC TRX ADA ATOM IOTA NEO ONT XLM XMR DASH ZEC".split(" "):
+            profit, length = calc_fullprofit(i)
+            data.append([i, profit, length])
+        data.sort(key=lambda i:i[1], reverse=True)
+        for i,profit,length in data:
+            print("",i, profit, length,"", sep="|")
+        exit()
     from pprint import pprint
     text = "|币种|昨日收益|七日年化|月年化|\n"
     t = []
