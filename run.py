@@ -1,5 +1,6 @@
 COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO", "BTC", "LINK", "LTC", "XMR"]
-import requests, os, sys, time
+ALLCOINS="BTC ETH EOS LINK BCH BSV LTC XRP ETC TRX ADA ATOM IOTA NEO ONT XLM XMR DASH ZEC XTZ".split(" ")
+import requests, os, sys, time, pickle, io
 from decimal import Decimal
 from functools import lru_cache
 from dtb.config import WebhookConfig
@@ -11,16 +12,23 @@ sess = requests.session()
 
 status = "ok"
 warns = 0
+USECACHE=os.environ.get("CACHE", False)
+os.environ['TZ'] = "UTC-8"
+time.tzset()
 
 @lru_cache()
 def getdata(coin, page=1):
     global warns, status
     page = str(page)
+    if USECACHE and os.path.isfile("__pycache__/"+coin+page):
+        return pickle.load(open("__pycache__/"+coin+page, "rb"))
     data = [Decimal(i['final_funding_rate']) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_funding_rate_page?contract_code="+coin+"-USD&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["settle_logs"]]
     settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_delivery_detail?symbol="+coin+"&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["delivery"]]
     if sum(data[:3])<0:
         warns += 1
         status = "warning "+str(warns)
+    if USECACHE:
+        open("__pycache__/"+coin+page, "wb").write(pickle.dumps([data,settle]))
     return data, settle
 
 def calcprofit(coin, days, yearly=True, returndata=False):
@@ -57,7 +65,7 @@ if __name__ == "__main__":
     #main()
     if 0:
         data=[]
-        for i in "BTC ETH EOS LINK BCH BSV LTC XRP ETC TRX ADA ATOM IOTA NEO ONT XLM XMR DASH ZEC".split(" "):
+        for i in ALLCOINS:
             profit, length = calc_fullprofit(i)
             data.append([i, profit, length])
         data.sort(key=lambda i:i[1], reverse=True)
@@ -86,3 +94,15 @@ if __name__ == "__main__":
     title = "[套利收益率] "+status
     if not os.environ.get("NODING", False):
         b.markdown(title,text)
+    
+    t = []
+    for coin in ALLCOINS:
+        t.append([coin+(" " if len(coin)==3 else ""), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), calcprofit(coin,1, yearly=False, returndata=True)])
+    t.sort(key=lambda i:i[-1])
+    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead><tr><th>币种</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
+    for data in t:
+        html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
+    html += "</tbody></table><blockquote>* 这些币种上线不足30日</blockquote>"
+    print(html)
+    x = sess.post("https://v0.api.upyun.com/py3iodownload", files={"file": io.BytesIO(html.encode("utf-8")), "policy":os.environ["UPYUN_POLICY"], "signature":os.environ["UPYUN_SIGN"]})
+    print(x.text)
