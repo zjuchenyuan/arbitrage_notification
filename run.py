@@ -14,7 +14,10 @@ status = "ok"
 warns = 0
 USECACHE=os.environ.get("CACHE", False)
 os.environ['TZ'] = "UTC-8"
-time.tzset()
+try:
+    time.tzset()
+except:
+    pass
 
 @lru_cache()
 def getdata(coin, page=1):
@@ -48,7 +51,7 @@ def calcprofit(coin, days, yearly=True, returndata=False):
     #return "%.2f"%(sum(data)/len(data)*3*365*100) + "%"+suffix
     return "%6.2f"%(profit_usd/len(data)*3*365*100) + "%"+suffix
 
-def calc_fullprofit(coin):
+def getfulldata(coin):
     data, settle = [], []
     page = 1
     x = getdata(coin)
@@ -57,9 +60,23 @@ def calc_fullprofit(coin):
         settle.extend(x[1])
         page+=1
         x = getdata(coin, page)
+    return data, settle
+    
+def calc_fullprofit(coin):
+    data, settle = getfulldata(coin)
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)])
     profit_usd = profit_coin*settle[0]
     return "%.2f"%(profit_usd/len(data)*3*365*100) + "%", len(data)
+
+def calc_fullprofit_curve(coin):
+    data, settle = getfulldata(coin)
+    data, settle = data[::-1], settle[::-1] #本来是逆序现在改成顺序 从第一次结算净值为1开始计算
+    curve = []
+    for i, item in enumerate(data):
+        profit_coin = sum([k/settle[j] for j,k in enumerate(data[:i+1])])
+        profit_usd = profit_coin*settle[i]
+        curve.append(profit_usd)
+    return curve
 
 if __name__ == "__main__":
     #main()
