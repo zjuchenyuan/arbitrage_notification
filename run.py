@@ -1,11 +1,12 @@
-COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO"]
+COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO", "BTC", "LINK", "LTC", "XMR"]
 import requests, os, sys, time
 from decimal import Decimal
 from functools import lru_cache
 from dtb.config import WebhookConfig
 from dtb import Bot
 
-b=Bot(WebhookConfig("https://oapi.dingtalk.com/robot/send?access_token="+os.environ["DINGTOKEN"]))
+if not os.environ.get("NODING", False):
+    b=Bot(WebhookConfig("https://oapi.dingtalk.com/robot/send?access_token="+os.environ["DINGTOKEN"]))
 sess = requests.session()
 
 status = "ok"
@@ -37,7 +38,7 @@ def calcprofit(coin, days, yearly=True, returndata=False):
             return profit_usd
         return "%.2f"%(profit_usd*100)+ "%"
     #return "%.2f"%(sum(data)/len(data)*3*365*100) + "%"+suffix
-    return "%.2f"%(profit_usd/len(data)*3*365*100) + "%"+suffix
+    return "%6.2f"%(profit_usd/len(data)*3*365*100) + "%"+suffix
 
 def calc_fullprofit(coin):
     data, settle = [], []
@@ -64,7 +65,7 @@ if __name__ == "__main__":
             print("",i, profit, length,"", sep="|")
         exit()
     from pprint import pprint
-    text = "|币种|昨日收益|七日年化|月年化|\n"
+    text = "|币种|昨日 |7日年化|月年化|\n"
     t = []
     for coin in COINLIST:
         t.append(["|".join(
@@ -83,4 +84,5 @@ if __name__ == "__main__":
     text = text.replace("|"," | ").replace("----","").replace(" \n ","\n\n")
     print(text.replace("\n\n","\n").strip())
     title = "[套利收益率] "+status
-    b.markdown(title,text)
+    if not os.environ.get("NODING", False):
+        b.markdown(title,text)
