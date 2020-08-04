@@ -123,7 +123,7 @@ if __name__ == "__main__":
     pprint(swap_index)
     for coin in ALLCOINS:
         t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
-    t.sort(key=lambda i:i[-1])
+    t.sort(key=lambda i:i[-1], reverse=True)
     html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
