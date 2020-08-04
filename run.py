@@ -107,7 +107,7 @@ if __name__ == "__main__":
         ])
     t.sort(key=lambda i:i[1])
     text += "\n".join([i[0] for i in t])
-    text = text.replace("|"," | ").replace("----","").replace(" \n ","\n\n")
+    text = text.replace("\n","\n\n")
     print(text.replace("\n\n","\n").strip())
     title = "[套利收益率] "+status
     if not os.environ.get("NODING", False):
