@@ -93,18 +93,15 @@ if __name__ == "__main__":
             print("",i, profit, length,"", sep="|")
         exit()
     from pprint import pprint
-    text = "|币种| 预测 | 昨日 |7日年化|月年化|\n"
+    text = "币种| 预测 | 昨日 |7日年化\n"
     t = []
     for coin in COINLIST:
         t.append(["|".join(
             [
-                "",
                 coin+(" " if len(coin)==3 else ""),
                 "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000),
                 calcprofit(coin,1, yearly=False),
                 calcprofit(coin,7),
-                calcprofit(coin,30),
-                ""
             ]), 
             calcprofit(coin,1, yearly=False, returndata=True),
         ])
