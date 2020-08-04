@@ -19,14 +19,21 @@ try:
 except:
     pass
 
+PRICE={} #最近一次结算的USD计价价格
+
 @lru_cache()
 def getdata(coin, page=1):
-    global warns, status
+    global warns, status, PRICE
     page = str(page)
     if USECACHE and os.path.isfile("__pycache__/"+coin+page):
-        return pickle.load(open("__pycache__/"+coin+page, "rb"))
+        res = pickle.load(open("__pycache__/"+coin+page, "rb"))
+        if page=="1":
+            PRICE[coin] = res[1][0]
+        return res
     data = [Decimal(i['final_funding_rate']) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_funding_rate_page?contract_code="+coin+"-USD&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["settle_logs"]]
     settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_delivery_detail?symbol="+coin+"&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["delivery"]]
+    if page=="1":
+        PRICE[coin] = settle[0]
     nextdata = sess.get("https://futures.huobi.com/swap-order/x/v1/swap_funding_rate?contract_code="+coin+"-USD", headers={"source":"web"}).json()["data"]
     next1, next2 = Decimal(nextdata["final_funding_rate"]), Decimal(nextdata["funding_rate"])
     if sum(data[:3])<0:
@@ -114,10 +121,11 @@ if __name__ == "__main__":
         b.markdown(title,text)
     
     t = []
+    print(PRICE)
     for coin in ALLCOINS:
-        t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), calcprofit(coin,1, yearly=False, returndata=True)])
+        t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
     t.sort(key=lambda i:i[-1])
-    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
+    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += "</tbody></table><blockquote>* 这些币种上线不足30日</blockquote>"
