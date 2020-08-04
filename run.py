@@ -37,7 +37,7 @@ def getdata(coin, page=1):
     settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in get("swap_delivery_detail?symbol="+coin+"&page_index="+page+"&page_size=100")["delivery"]]
     if page=="1":
         PRICE[coin] = settle[0]
-    nextdata = get("swap_funding_rate?contract_code="+coin+"-USD")["data"]
+    nextdata = get("swap_funding_rate?contract_code="+coin+"-USD")
     next1, next2 = Decimal(nextdata["final_funding_rate"]), Decimal(nextdata["funding_rate"])
     if sum(data[:3])<0:
         warns += 1
