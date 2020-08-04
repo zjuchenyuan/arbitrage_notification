@@ -96,7 +96,7 @@ if __name__ == "__main__":
     text = "币种| 预测 | 昨日 |7日年化\n"
     t = []
     for coin in COINLIST:
-        t.append(["|".join(
+        t.append([" | ".join(
             [
                 coin+(" " if len(coin)==3 else ""),
                 "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000),
