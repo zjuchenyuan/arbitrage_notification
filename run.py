@@ -124,10 +124,23 @@ if __name__ == "__main__":
     for coin in ALLCOINS:
         t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
     t.sort(key=lambda i:i[-1], reverse=True)
-    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
+    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s <a onclick="triggerrefresh">触发更新</a><br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
-    html += "</tbody></table>"
+    html += """</tbody></table><script>
+    function triggerrefresh(){    
+        fetch("http://api.py3.io/trigger_btc_refresh").then(function(response) {
+            if (!response.ok) {
+                throw Error(response.statusText);
+            }
+            return response;
+        }).then(function(response) {
+            alert("已触发更新，请等待1分钟后刷新页面")
+        }).catch(function(error) {
+            alert("触发更新失败，请稍后再来")
+        });
+    }</script>
+    """
     if hasless30:
         html += "<blockquote>* 这些币种上线不足30日</blockquote>"
     print(html)
