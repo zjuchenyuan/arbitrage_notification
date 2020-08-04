@@ -1,5 +1,4 @@
 COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO", "BTC", "LINK", "LTC", "XMR"]
-ALLCOINS="BTC ETH EOS LINK BCH BSV LTC XRP ETC TRX ADA ATOM IOTA NEO ONT XLM XMR DASH ZEC XTZ".split(" ")
 import requests, os, sys, time, pickle, io
 from decimal import Decimal
 from functools import lru_cache
@@ -20,6 +19,10 @@ except:
     pass
 
 PRICE={} #最近一次结算的USD计价价格
+hasless30 = False #是否有上线少于30天的币种
+
+def get(url):
+    return sess.get("https://futures.huobi.com/swap-order/x/v1/"+url, headers={"source":"web"}).json()["data"]
 
 @lru_cache()
 def getdata(coin, page=1):
@@ -30,11 +33,11 @@ def getdata(coin, page=1):
         if page=="1":
             PRICE[coin] = res[1][0]
         return res
-    data = [Decimal(i['final_funding_rate']) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_funding_rate_page?contract_code="+coin+"-USD&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["settle_logs"]]
-    settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in sess.get("https://futures.huobi.com/swap-order/x/v1/swap_delivery_detail?symbol="+coin+"&page_index="+page+"&page_size=100", headers={"source":"web"}).json()["data"]["delivery"]]
+    data = [Decimal(i['final_funding_rate']) for i in get("swap_funding_rate_page?contract_code="+coin+"-USD&page_index="+page+"&page_size=100")["settle_logs"]]
+    settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in get("swap_delivery_detail?symbol="+coin+"&page_index="+page+"&page_size=100")["delivery"]]
     if page=="1":
         PRICE[coin] = settle[0]
-    nextdata = sess.get("https://futures.huobi.com/swap-order/x/v1/swap_funding_rate?contract_code="+coin+"-USD", headers={"source":"web"}).json()["data"]
+    nextdata = get("swap_funding_rate?contract_code="+coin+"-USD")["data"]
     next1, next2 = Decimal(nextdata["final_funding_rate"]), Decimal(nextdata["funding_rate"])
     if sum(data[:3])<0:
         warns += 1
@@ -45,6 +48,7 @@ def getdata(coin, page=1):
     return res
 
 def calcprofit(coin, days, yearly=True, returndata=False):
+    global hasless30
     fulldata, fullsettle, next1, next2 = getdata(coin)
     data, settle = fulldata[:days*3], fullsettle[:days*3]
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
@@ -54,6 +58,7 @@ def calcprofit(coin, days, yearly=True, returndata=False):
     suffix = ""
     if len(data)<days*3:
         suffix = " *"
+        hasless30 = True
     if not yearly:
         if returndata:
             return profit_usd
@@ -89,25 +94,15 @@ def calc_fullprofit_curve(coin):
     return curve
 
 if __name__ == "__main__":
-    #main()
-    if 0:
-        data=[]
-        for i in ALLCOINS:
-            profit, length = calc_fullprofit(i)
-            data.append([i, profit, length])
-        data.sort(key=lambda i:i[1], reverse=True)
-        for i,profit,length in data:
-            print("",i, profit, length,"", sep="|")
-        exit()
     from pprint import pprint
-    text = "币种| 预测 | 昨日 |7日年化\n"
+    text = "币种| 昨日 | 预测 |7日年化\n"
     t = []
     for coin in COINLIST:
         t.append([" | ".join(
             [
                 coin+(" " if len(coin)==3 else ""),
-                "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000),
                 calcprofit(coin,1, yearly=False),
+                "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000),
                 calcprofit(coin,7),
             ]), 
             calcprofit(coin,1, yearly=False, returndata=True),
@@ -122,13 +117,19 @@ if __name__ == "__main__":
     
     t = []
     print(PRICE)
+    swap_index = get("swap_index")
+    ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
+    print(ALLCOINS)
+    pprint(swap_index)
     for coin in ALLCOINS:
         t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
     t.sort(key=lambda i:i[-1])
     html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s<br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
-    html += "</tbody></table><blockquote>* 这些币种上线不足30日</blockquote>"
+    html += "</tbody></table>"
+    if hasless30:
+        html += "<blockquote>* 这些币种上线不足30日</blockquote>"
     print(html)
     x = sess.post("https://v0.api.upyun.com/py3iodownload", files={"file": io.BytesIO(html.encode("utf-8")), "policy":os.environ["UPYUN_POLICY"], "signature":os.environ["UPYUN_SIGN"]})
     print(x.text)
