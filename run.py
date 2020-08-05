@@ -5,7 +5,7 @@ from functools import lru_cache
 from dtb.config import WebhookConfig
 from dtb import Bot
 
-if not os.environ.get("NODING", False):
+if os.environ.get("DINGTOKEN", False):
     b=Bot(WebhookConfig("https://oapi.dingtalk.com/robot/send?access_token="+os.environ["DINGTOKEN"]))
 sess = requests.session()
 
@@ -23,6 +23,16 @@ hasless30 = False #是否有上线少于30天的币种
 
 def get(url):
     return sess.get("https://futures.huobi.com/swap-order/x/v1/"+url, headers={"source":"web"}).json()["data"]
+
+from datetime import datetime, timedelta
+def d(ts):
+    ts = int(ts)
+    if len(str(ts))==13:
+        ts = ts//1000
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+USDPRICEDATA=[i for i in sess.get("https://www.huobi.com/-/x/general/exchange_rate/list").json()["data"] if i["name"]=="usd_cny"][0]
+USDPRICE = "%.4f"%USDPRICEDATA["rate"]
+print("USD Time:", d(USDPRICEDATA["data_time"]), "Price:", USDPRICE)
 
 @lru_cache()
 def getdata(coin, page=1):
@@ -95,7 +105,7 @@ def calc_fullprofit_curve(coin):
 
 if __name__ == "__main__":
     from pprint import pprint
-    text = "币种| 昨日 | 预测 |7日年化\n"
+    text = "USD: "+USDPRICE+"\n币种| 昨日 | 预测 |7日年化\n"
     t = []
     for coin in COINLIST:
         t.append([" | ".join(
@@ -112,7 +122,7 @@ if __name__ == "__main__":
     text = text.replace("\n","\n\n")
     print(text.replace("\n\n","\n").strip())
     title = "[套利收益率] "+status
-    if not os.environ.get("NODING", False):
+    if os.environ.get("DINGTOKEN", False):
         b.markdown(title,text)
     
     t = []
@@ -128,7 +138,7 @@ if __name__ == "__main__":
             print("error:", coin)
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
-    html = """<!doctype html><meta charset="utf-8">\n数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(time.strftime("%Y-%m-%d %H:%M:%S"))
+    html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
@@ -136,5 +146,6 @@ if __name__ == "__main__":
         html += "<blockquote>* 这些币种上线不足30日</blockquote>"
     print(html)
     html+= """<script>function triggerrefresh(){location.href="https://blog.chenyuan.me/Bitcoin/?refresh#_3"}</script>"""
-    x = sess.post("https://v0.api.upyun.com/py3iodownload", files={"file": io.BytesIO(html.encode("utf-8")), "policy":os.environ["UPYUN_POLICY"], "signature":os.environ["UPYUN_SIGN"]})
-    print(x.text)
+    if os.environ.get("UPYUN_POLICY", False):
+        x = sess.post("https://v0.api.upyun.com/py3iodownload", files={"file": io.BytesIO(html.encode("utf-8")), "policy":os.environ["UPYUN_POLICY"], "signature":os.environ["UPYUN_SIGN"]})
+        print(x.text)
