@@ -103,6 +103,16 @@ def calc_fullprofit_curve(coin):
         curve.append(profit_usd)
     return curve
 
+def number2chinese(d):
+    n = str(d)
+    digits = len(n)
+    if digits<=3: #123 -> "123"
+        return str(n)
+    elif digits<=8: #1234 -> "0.123万"
+        return "%.2f"%(d/10000)+"万"
+    else:
+        return "%.2f"%(d/100000000)+"亿"
+
 if __name__ == "__main__":
     from pprint import pprint
     import threading
@@ -145,14 +155,26 @@ if __name__ == "__main__":
         threads.append(th)
     [th.join() for t in threads]
     
+    swap_open_interest = {i["symbol"]:int(i["volume"]) for i in get("swap_open_interest")}
+    
     for coin in ALLCOINS:
         try:
-            t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
+            t.append([
+                coin+(" " if len(coin)==3 else ""), 
+                "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), 
+                calcprofit(coin,1, yearly=False), 
+                calcprofit(coin,7), 
+                calcprofit(coin,30), 
+                str(round(PRICE[coin],6)).rstrip("0"), 
+                number2chinese(swap_open_interest[coin]*(10 if coin!="BTC" else 100)),
+                getdata(coin)[2]+getdata(coin)[3], #预测收益 用于默认排序
+            ])
         except:
             print("error:", coin)
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
-    html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>\n<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
+    html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
+<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th><th>持仓量USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
