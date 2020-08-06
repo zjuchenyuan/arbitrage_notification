@@ -20,6 +20,7 @@ except:
 
 PRICE={} #最近一次结算的USD计价价格
 hasless30 = False #是否有上线少于30天的币种
+increase = {} #30日涨幅
 
 def get(url):
     return sess.get("https://futures.huobi.com/swap-order/x/v1/"+url, headers={"source":"web"}).json()["data"]
@@ -61,6 +62,8 @@ def calcprofit(coin, days, yearly=True, returndata=False):
     global hasless30
     fulldata, fullsettle, next1, next2 = getdata(coin)
     data, settle = fulldata[:days*3], fullsettle[:days*3]
+    if days==30: #使用30天开始和结束的结算价格计算涨幅
+        increase[coin] = (settle[0]/settle[-1]-1)*100
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
     profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
     #print(coin, "profit_usd:", profit_usd)
@@ -165,6 +168,7 @@ if __name__ == "__main__":
                 calcprofit(coin,1, yearly=False), 
                 calcprofit(coin,7), 
                 calcprofit(coin,30), 
+                "%.2f%%"%increase[coin],
                 str(round(PRICE[coin],6)).rstrip("0"), 
                 number2chinese(swap_open_interest[coin]*(10 if coin!="BTC" else 100)),
                 getdata(coin)[2]+getdata(coin)[3], #预测收益 用于默认排序
@@ -174,7 +178,7 @@ if __name__ == "__main__":
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
     html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
-<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>最近结算价格USD</th><th>持仓量USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
+<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>30日涨幅</th><th>最近结算价格USD</th><th>持仓量USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
