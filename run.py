@@ -178,9 +178,9 @@ if __name__ == "__main__":
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
     html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
-<table><thead>\n<tr><th>币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>30日涨幅</th><th>结算价格</th><th>持仓量USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
+<table><thead>\n<tr><th class="headcol">币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>30日涨幅</th><th>结算价格</th><th>持仓量USD</th></tr></thead><tbody>\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
-        html += "<tr><td>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
+        html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
     if hasless30:
         html += "<blockquote>* 这些币种上线不足30日</blockquote>"
