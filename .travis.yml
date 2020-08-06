@@ -1,5 +1,5 @@
 version: ~> 1.0
-
+dist: bionic
 language: python
 
 env:
@@ -7,7 +7,7 @@ env:
     - PYTHONIOENCODING: utf8
 
 python:
-  - '3.8'
+  - '3.6'
 
 before_install:
   - pip install -U requests
