@@ -105,6 +105,13 @@ def calc_fullprofit_curve(coin):
 
 if __name__ == "__main__":
     from pprint import pprint
+    import threading
+    threads = []
+    for coin in COINLIST:
+        t = threading.Thread(target=getdata, args=[coin])
+        t.start()
+        threads.append(t)
+    [t.join() for t in threads]
     text = "USD: "+USDPRICE+"\n币种| 昨日 | 预测 |7日年化\n"
     t = []
     for coin in COINLIST:
@@ -131,6 +138,13 @@ if __name__ == "__main__":
     ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
     print(ALLCOINS)
     pprint(swap_index)
+    threads = []
+    for coin in ALLCOINS:
+        th = threading.Thread(target=getdata, args=[coin])
+        th.start()
+        threads.append(th)
+    [th.join() for t in threads]
+    
     for coin in ALLCOINS:
         try:
             t.append([coin+(" " if len(coin)==3 else ""), "%.2f‰"%((getdata(coin)[2]+getdata(coin)[3])*1000), calcprofit(coin,1, yearly=False), calcprofit(coin,7), calcprofit(coin,30), str(round(PRICE[coin],6)).rstrip("0"), getdata(coin)[2]+getdata(coin)[3]])
