@@ -31,9 +31,9 @@ def d(ts):
     if len(str(ts))==13:
         ts = ts//1000
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-USDPRICEDATA=[i for i in sess.get("https://www.huobi.com/-/x/general/exchange_rate/list").json()["data"] if i["name"]=="usd_cny"][0]
-USDPRICE = "%.4f"%USDPRICEDATA["rate"]
-print("USD Time:", d(USDPRICEDATA["data_time"]), "Price:", USDPRICE)
+USDTPRICEDATA=[i for i in sess.get("https://www.huobi.com/-/x/general/exchange_rate/list").json()["data"] if i["name"]=="usdt_cny"][0]
+USDTPRICE = "%.4f"%USDTPRICEDATA["rate"]
+print("USD Time:", d(USDTPRICEDATA["data_time"]), "Price:", USDTPRICE)
 
 @lru_cache()
 def getdata(coin, page=1):
@@ -125,7 +125,7 @@ if __name__ == "__main__":
         t.start()
         threads.append(t)
     [t.join() for t in threads]
-    text = "USD: "+USDPRICE+"\n币种| 昨日 | 预测 |7日年化\n"
+    text = "USDT: "+USDTPRICE+"\n币种| 昨日 | 预测 |7日年化\n"
     t = []
     for coin in COINLIST:
         t.append([" | ".join(
@@ -177,9 +177,9 @@ if __name__ == "__main__":
             print("error:", coin)
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
-    html = """<!doctype html><meta charset="utf-8">\n今日USD价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
+    html = """<!doctype html><meta charset="utf-8">\n当前USDT价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
 <table><thead>\n<tr><th class="headcol">币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>30日涨幅</th><th>结算价格</th><th>持仓量USD</th></tr></thead>
-<tbody id="realtimeprofittbody">\n"""%(USDPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
+<tbody id="realtimeprofittbody">\n"""%(USDTPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
         html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
