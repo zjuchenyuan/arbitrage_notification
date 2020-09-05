@@ -177,7 +177,7 @@ if __name__ == "__main__":
             print("error:", coin)
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
-    html = """<!doctype html><meta charset="utf-8">\n当前USDT价格：%s 数据更新时间：%s <a onclick="triggerrefresh()">触发更新</a><br>
+    html = """<!doctype html><meta charset="utf-8">\n当前USDT价格：%s 数据更新时间：%s <a onclick="loadbtctable()" oncontextmenu="triggerrefresh();return false">触发更新</a><br>
 <table style="line-height: 0.5;"><thead>\n<tr><th class="headcol">币种</th><th>预测收益</th><th>昨日收益</th><th>7日年化</th><th>30日年化</th><th>30日涨幅</th><th>结算价格</th><th>持仓量USD</th></tr></thead>
 <tbody id="realtimeprofittbody">\n"""%(USDTPRICE,time.strftime("%Y-%m-%d %H:%M:%S"))
     for data in t:
