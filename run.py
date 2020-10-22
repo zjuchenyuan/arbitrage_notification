@@ -1,4 +1,4 @@
-COINLIST=["EOS", "IOTA", "ZEC", "BSV", "BCH", "ONT", "NEO", "BTC", "LINK", "LTC", "XMR"]
+COINLIST=['DOT', 'WAVES', 'IOST', 'ZEC', 'ATOM', 'MKR', 'XTZ', 'ANKR', 'STORJ', 'VET', 'ETC', 'ONT']
 import requests, os, sys, time, pickle, io
 from decimal import Decimal
 from functools import lru_cache
