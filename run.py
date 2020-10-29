@@ -70,12 +70,12 @@ def linear_getdata(coin, page=1):
     if USECACHE and os.path.isfile("__pycache__/linear_"+coin+page):
         res = pickle.load(open("__pycache__/linear_"+coin+page, "rb"))
         if page=="1":
-            PRICE[coin] = res[1][0]
+            PRICE["u"+coin] = res[1][0]
         return res
     data = [Decimal(i['final_funding_rate']) for i in linear_get("linear_swap_funding_rate_page?contract_code="+coin+"-USDT&page_index="+page+"&page_size=100")["settle_logs"]]
     settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in linear_get("linear_swap_delivery_detail?contract_code="+coin+"-USDT&page_index="+page+"&page_size=100")["delivery"]]
     if page=="1":
-        PRICE[coin] = PRICE["u"+coin] = settle[0]
+        PRICE["u"+coin] = settle[0]
     nextdata = linear_get("linear_swap_funding_rate?contract_code="+coin+"-USDT")
     next1, next2 = Decimal(nextdata["final_funding_rate"]), Decimal(nextdata["funding_rate"])
     if sum(data[:3])<0:
@@ -94,7 +94,7 @@ def calcprofit(coin, days, yearly=True, returndata=False, func_getdata=getdata):
     fulldata, fullsettle, next1, next2 = func_getdata(coin)
     data, settle = fulldata[:days*3], fullsettle[:days*3]
     if days==30: #使用30天开始和结束的结算价格计算涨幅
-        increase[coin] = increase["u"+coin] = (settle[0]/settle[-1]-1)*100
+        increase[("u" if func_getdata==linear_getdata else "")+coin] = (settle[0]/settle[-1]-1)*100
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
     profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
     #print(coin, "profit_usd:", profit_usd)
