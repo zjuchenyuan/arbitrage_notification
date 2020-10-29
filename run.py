@@ -1,4 +1,4 @@
-COINLIST=['DOT', 'WAVES', 'IOST', 'ZEC', 'ATOM', 'MKR', 'XTZ', 'ANKR', 'STORJ', 'VET', 'ETC', 'ONT']
+COINLIST=['IOST','DOT','WAVES','ZEC','BTM','ANKR','ATOM','MKR','XTZ','QTUM','STORJ','VET','ONT','ETC','uFIL']
 import requests, os, sys, time, pickle, io
 from decimal import Decimal
 from functools import lru_cache
@@ -41,6 +41,8 @@ print("USD Time:", d(USDTPRICEDATA["data_time"]), "Price:", USDTPRICE)
 @lru_cache()
 def getdata(coin, page=1):
     global warns, status, PRICE
+    if coin[0]=="u":
+        return linear_getdata(coin[1:], page)
     page = str(page)
     if USECACHE and os.path.isfile("__pycache__/"+coin+page):
         res = pickle.load(open("__pycache__/"+coin+page, "rb"))
@@ -73,7 +75,7 @@ def linear_getdata(coin, page=1):
     data = [Decimal(i['final_funding_rate']) for i in linear_get("linear_swap_funding_rate_page?contract_code="+coin+"-USDT&page_index="+page+"&page_size=100")["settle_logs"]]
     settle = [Decimal(i["instrument_info"][0]["settle_price"]) for i in linear_get("linear_swap_delivery_detail?contract_code="+coin+"-USDT&page_index="+page+"&page_size=100")["delivery"]]
     if page=="1":
-        PRICE[coin] = settle[0]
+        PRICE[coin] = PRICE["u"+coin] = settle[0]
     nextdata = linear_get("linear_swap_funding_rate?contract_code="+coin+"-USDT")
     next1, next2 = Decimal(nextdata["final_funding_rate"]), Decimal(nextdata["funding_rate"])
     if sum(data[:3])<0:
@@ -86,10 +88,13 @@ def linear_getdata(coin, page=1):
 
 def calcprofit(coin, days, yearly=True, returndata=False, func_getdata=getdata):
     global hasless30
+    if coin[0]=="u":
+        func_getdata = linear_getdata
+        coin = coin[1:]
     fulldata, fullsettle, next1, next2 = func_getdata(coin)
     data, settle = fulldata[:days*3], fullsettle[:days*3]
     if days==30: #使用30天开始和结束的结算价格计算涨幅
-        increase[coin] = (settle[0]/settle[-1]-1)*100
+        increase[coin] = increase["u"+coin] = (settle[0]/settle[-1]-1)*100
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
     profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
     #print(coin, "profit_usd:", profit_usd)
@@ -147,7 +152,7 @@ if __name__ == "__main__":
     import threading
     threads = []
     for coin in COINLIST:
-        t = threading.Thread(target=getdata, args=[coin])
+        t = threading.Thread(target=getdata if coin[0]!='u' else linear_getdata, args=[coin if coin[0]!='u' else coin[1:]])
         t.start()
         threads.append(t)
     [t.join() for t in threads]
@@ -176,25 +181,21 @@ if __name__ == "__main__":
     swap_index = get("swap_index")
     linear_swap_index = linear_get("linear_swap_index")
     ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
-    linear_ALLCOINS = [i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
+    linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
     print(ALLCOINS, linear_ALLCOINS)
     pprint(swap_index)
     pprint(linear_swap_index)
     threads = []
-    for coin in ALLCOINS:
+    for coin in ALLCOINS+linear_ALLCOINS:
         th = threading.Thread(target=getdata, args=[coin])
-        th.start()
-        threads.append(th)
-    for coin in linear_ALLCOINS:
-        th = threading.Thread(target=linear_getdata, args=[coin])
         th.start()
         threads.append(th)
     [th.join() for t in threads]
     
     swap_open_interest = {i["symbol"]:int(i["volume"]) for i in get("swap_open_interest")}
-    linear_swap_open_interest = {i["symbol"]:int(i["volume"]) for i in linear_get("linear_swap_open_interest")}
+    swap_open_interest.update({"u"+i["symbol"]:int(i["volume"]) for i in linear_get("linear_swap_open_interest")})
     
-    for coin in ALLCOINS:
+    for coin in ALLCOINS+linear_ALLCOINS:
         try:
             t.append([
                 coin+(" " if len(coin)==3 else ""), 
@@ -208,25 +209,8 @@ if __name__ == "__main__":
                 number2chinese(swap_open_interest[coin]*(10 if coin!="BTC" else 100)),
                 getdata(coin)[2]+getdata(coin)[3], #预测收益 用于默认排序
             ])
-        except:
-            print("error:", coin)
-            pass
-    for coin in linear_ALLCOINS:
-        try:
-            t.append([
-                "u"+coin, 
-                "%.2f‰"%(linear_getdata(coin)[2]*1000), 
-                "%.2f‰"%(linear_getdata(coin)[3]*1000), 
-                calcprofit(coin,1, yearly=False, func_getdata=linear_getdata), 
-                calcprofit(coin,7, func_getdata=linear_getdata), 
-                calcprofit(coin,30, func_getdata=linear_getdata), 
-                "%.2f%%"%increase[coin],
-                str(round(PRICE[coin],6)).rstrip("0"), 
-                number2chinese(linear_swap_open_interest[coin]*(10 if coin!="BTC" else 100)),
-                linear_getdata(coin)[2]+linear_getdata(coin)[3], #预测收益 用于默认排序
-            ])
-        except:
-            print("error:", coin)
+        except Exception as e:
+            print("error:", coin, e)
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
     html = """<!doctype html><meta charset="utf-8">\n当前USDT价格：%s 数据更新时间：%s <a onclick="loadbtctable()" oncontextmenu="triggerrefresh();return false">触发更新</a><br>
