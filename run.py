@@ -34,6 +34,7 @@ def d(ts):
     if len(str(ts))==13:
         ts = ts//1000
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
 USDTPRICEDATA=[i for i in sess.get("https://www.huobi.com/-/x/general/exchange_rate/list").json()["data"] if i["name"]=="usdt_cny"][0]
 USDTPRICE = "%.4f"%USDTPRICEDATA["rate"]
 print("USD Time:", d(USDTPRICEDATA["data_time"]), "Price:", USDTPRICE)
@@ -147,6 +148,30 @@ def number2chinese(d):
     else:
         return "%.2f"%(d/100000000)+"亿"
 
+def binance_premiumIndex():
+    # 币安当前的币本位合约预测资金费率和详情
+    # 注意币安下一次的资金费率不像火币（本次+预测）一样固定 而是到结算时才能确定（本次就是预测）
+    # {"BTCUSD": [Decimal(""), detail]}
+    # 其中detail为原始数据：{"symbol":"BTCUSD_PERP","pair":"BTCUSD","markPrice":"18818.14711725","indexPrice":"18816.79090909","estimatedSettlePrice":"18838.22532679","lastFundingRate":"0.00010000","interestRate":"0.00010000","nextFundingTime":1606896000000,"time":1606874737000}
+    data = sess.get("https://dapi.binance.com/dapi/v1/premiumIndex").json()
+    data = [i for i in data if i["symbol"].endswith("_PERP")]
+    return {i["pair"]: [Decimal(i["lastFundingRate"]),i] for i in data}
+
+def binance_fundingRate(pair):
+    # 币安资金费率历史
+    # 注意api调用是按时间asc的， 我们需要desc的数据
+    # 没有结算价格数据
+    # 返回 [(时间戳, 资金费率)]
+    data = sess.get("https://dapi.binance.com/dapi/v1/fundingRate?symbol="+pair+"_PERP&limit=1000").json()
+    return [(i["fundingTime"]//1000, Decimal(i["fundingRate"])) for i in data][::-1]
+
+def binance_markPriceKlines(pair):
+    # 币安标记价格K线4小时数据，返回{时间戳: 当时开盘价格}
+    data = sess.get("https://dapi.binance.com/dapi/v1/markPriceKlines?symbol="+pair+"_PERP&interval=4h&limit=1500").json()
+    #data = [i for i in data if i[0]%28800==0]
+    #return [Decimal(i[1]) for i in data][::-1]
+    return {i[0]//1000: Decimal(i[1]) for i in data}
+
 if __name__ == "__main__":
     from pprint import pprint
     import threading
@@ -178,10 +203,16 @@ if __name__ == "__main__":
     
     t = []
     print(PRICE)
+    
     swap_index = get("swap_index")
-    linear_swap_index = linear_get("linear_swap_index")
     ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
+    
+    linear_swap_index = linear_get("linear_swap_index")
     linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
+    
+    bCOINS = binance_premiumIndex()
+    bCOINS_history = {i:binance_fundingRate(i) for i in bCOINS}
+    
     print(ALLCOINS, linear_ALLCOINS)
     pprint(swap_index)
     pprint(linear_swap_index)
