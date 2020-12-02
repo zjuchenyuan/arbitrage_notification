@@ -46,6 +46,8 @@ def getdata(coin, page=1):
         return linear_getdata(coin[1:], page)
     elif coin[0]=="b":
         return binance_getdata(coin[1:])
+    elif coin[0]=="o":
+        return okex_getdata(coin[1:])
     page = str(page)
     if USECACHE and os.path.isfile("__pycache__/"+coin+page):
         res = pickle.load(open("__pycache__/"+coin+page, "rb"))
@@ -198,6 +200,47 @@ def binance_getdata(coin):
         settle.append(klines[ts])
     return [data, settle, next1, next2]
 
+def okex_get(url):
+    return sess.get("https://www.okex.com/api/swap/v3/"+url).json()
+
+def okex_instruments():
+    return okex_get("instruments")
+
+def okex_historical_funding_rate(coin):
+    data = okex_get("instruments/"+coin+"-USD-SWAP/historical_funding_rate")
+    return [(i['funding_time'], Decimal(i["realized_rate"])) for i in data]
+
+def okex_history_candles(coin):
+    data = sess.get("https://www.okex.com/v2/perpetual/pc/public/instruments/"+coin+"-USD-SWAP/candles?granularity=14400&size=1000").json()["data"]
+    #print(data)
+    return {i[0]:Decimal(i[1]) for i in data}
+
+def okex_funding_time(coin):
+    return okex_get("instruments/"+coin+"-USD-SWAP/funding_time")
+
+@lru_cache()
+def okex_open_interest(coin):
+    data = okex_get("instruments/"+coin+"-USD-SWAP/open_interest")
+    return int(data["amount"])
+
+def okex_getdata(coin):
+    okex_open_interest(coin)
+    frhistory = okex_historical_funding_rate(coin)
+    klines = okex_history_candles(coin)
+    ft = okex_funding_time(coin)
+    next1 = Decimal(ft["funding_rate"])
+    next2 = Decimal(ft["estimated_rate"])
+    
+    data = []
+    settle = []
+    for ts, fr in frhistory:
+        if ts not in klines:
+            continue
+        data.append(fr)
+        settle.append(klines[ts])
+    PRICE["o"+coin] = settle[0]
+    return [data, settle, next1, next2]
+
 if __name__ == "__main__":
     from pprint import pprint
     import threading
@@ -237,8 +280,9 @@ if __name__ == "__main__":
     linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
     
     bCOINS = ["b"+i.replace("USD","") for i in binance_premiumIndex().keys()]
+    oCOINS = ["o"+i["instrument_id"].split("-")[0] for i in okex_instruments() if i["instrument_id"].endswith("-USD-SWAP")]
     
-    coin_series = ALLCOINS+linear_ALLCOINS+bCOINS
+    coin_series = ALLCOINS+linear_ALLCOINS+bCOINS+oCOINS
     
     #print(coin_series)
     #pprint(swap_index)
@@ -253,8 +297,12 @@ if __name__ == "__main__":
     swap_open_interest = {i["symbol"]:int(i["volume"])*(10 if i["symbol"]!="BTC" else 100) for i in get("swap_open_interest")}
     swap_open_interest.update({"u"+i["symbol"]:int(i['value']) for i in linear_get("linear_swap_open_interest")})
     swap_open_interest.update({i:binance_openInterest(i[1:]+"USD")*(10 if i!="bBTC" else 100) for i in bCOINS})
+    swap_open_interest.update({i:okex_open_interest(i[1:])*(10 if i!="oBTC" else 100) for i in oCOINS})
     
     for coin in coin_series:
+        price = str(round(PRICE[coin],4)).rstrip("0")
+        if int(price.split(".")[0])>10 and "." in price:
+            price = price.split(".")[0]+"."+price.split(".")[1][:2]
         try:
             t.append([
                 coin+(" " if len(coin)==3 else ""), 
@@ -264,7 +312,7 @@ if __name__ == "__main__":
                 calcprofit(coin,7), 
                 calcprofit(coin,30), 
                 "%.2f%%"%increase[coin],
-                str(round(PRICE[coin],4)).rstrip("0"), 
+                price, 
                 number2chinese(swap_open_interest[coin]),
                 getdata(coin)[2]+getdata(coin)[3], #预测收益 用于默认排序
             ])
@@ -280,7 +328,7 @@ if __name__ == "__main__":
         html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
     if hasless30:
-        html += "<blockquote>* 这些币种上线不足30日, u开头表示USDT本位合约, b开头表示币安币本位合约</blockquote>"
+        html += "<blockquote>* 这些币种上线不足30日, u-USDT本位, b-币安币本位, o-OKex币本位</blockquote>"
     print(html)
     html+= """<script>function triggerrefresh(){location.href="https://blog.chenyuan.me/Bitcoin/?refresh#_3"}</script>"""
     if os.environ.get("UPYUN_POLICY", False):
