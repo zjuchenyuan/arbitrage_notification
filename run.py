@@ -1,4 +1,4 @@
-COINLIST=['IOST','DOT','WAVES','ZEC','BTM','ANKR','ATOM','MKR','XTZ','QTUM','STORJ','VET','ONT','ETC','uFIL']
+COINLIST=['DOT','MKR','BTM','IOST','ZEC','KSM','ATOM','XTZ','bETH','bTRX','bDOT','bFIL','QTUM','STORJ','ONT','ETC','LTC','bETC']
 import requests, os, sys, time, pickle, io, traceback
 from decimal import Decimal
 from functools import lru_cache
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     import threading
     threads = []
     for coin in COINLIST:
-        t = threading.Thread(target=getdata if coin[0]!='u' else linear_getdata, args=[coin if coin[0]!='u' else coin[1:]])
+        t = threading.Thread(target=getdata, args=[coin])
         t.start()
         threads.append(t)
     [t.join() for t in threads]
@@ -228,7 +228,7 @@ if __name__ == "__main__":
         b.markdown(title,text)
     
     t = []
-    print(PRICE)
+    #print(PRICE)
     
     swap_index = get("swap_index")
     ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
@@ -240,9 +240,9 @@ if __name__ == "__main__":
     
     coin_series = ALLCOINS+linear_ALLCOINS+bCOINS
     
-    print(coin_series)
-    pprint(swap_index)
-    pprint(linear_swap_index)
+    #print(coin_series)
+    #pprint(swap_index)
+    #pprint(linear_swap_index)
     threads = []
     for coin in coin_series:
         th = threading.Thread(target=getdata, args=[coin])
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
     if hasless30:
-        html += "<blockquote>* 这些币种上线不足30日, u开头表示USDT本位合约</blockquote>"
+        html += "<blockquote>* 这些币种上线不足30日, u开头表示USDT本位合约, b开头表示币安币本位合约</blockquote>"
     print(html)
     html+= """<script>function triggerrefresh(){location.href="https://blog.chenyuan.me/Bitcoin/?refresh#_3"}</script>"""
     if os.environ.get("UPYUN_POLICY", False):
