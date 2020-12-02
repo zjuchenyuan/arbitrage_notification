@@ -1,5 +1,5 @@
 COINLIST=['IOST','DOT','WAVES','ZEC','BTM','ANKR','ATOM','MKR','XTZ','QTUM','STORJ','VET','ONT','ETC','uFIL']
-import requests, os, sys, time, pickle, io
+import requests, os, sys, time, pickle, io, traceback
 from decimal import Decimal
 from functools import lru_cache
 from dtb.config import WebhookConfig
@@ -44,6 +44,8 @@ def getdata(coin, page=1):
     global warns, status, PRICE
     if coin[0]=="u":
         return linear_getdata(coin[1:], page)
+    elif coin[0]=="b":
+        return binance_getdata(coin[1:])
     page = str(page)
     if USECACHE and os.path.isfile("__pycache__/"+coin+page):
         res = pickle.load(open("__pycache__/"+coin+page, "rb"))
@@ -87,15 +89,12 @@ def linear_getdata(coin, page=1):
         open("__pycache__/linear_"+coin+page, "wb").write(pickle.dumps(res))
     return res
 
-def calcprofit(coin, days, yearly=True, returndata=False, func_getdata=getdata):
+def calcprofit(coin, days, yearly=True, returndata=False):
     global hasless30
-    if coin[0]=="u":
-        func_getdata = linear_getdata
-        coin = coin[1:]
-    fulldata, fullsettle, next1, next2 = func_getdata(coin)
+    fulldata, fullsettle, next1, next2 = getdata(coin)
     data, settle = fulldata[:days*3], fullsettle[:days*3]
     if days==30: #使用30天开始和结束的结算价格计算涨幅
-        increase[("u" if func_getdata==linear_getdata else "")+coin] = (settle[0]/settle[-1]-1)*100
+        increase[coin] = (settle[0]/settle[-1]-1)*100
     profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
     profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
     #print(coin, "profit_usd:", profit_usd)
@@ -148,13 +147,17 @@ def number2chinese(d):
     else:
         return "%.2f"%(d/100000000)+"亿"
 
+@lru_cache()
 def binance_premiumIndex():
     # 币安当前的币本位合约预测资金费率和详情
     # 注意币安下一次的资金费率不像火币（本次+预测）一样固定 而是到结算时才能确定（本次就是预测）
     # {"BTCUSD": [Decimal(""), detail]}
     # 其中detail为原始数据：{"symbol":"BTCUSD_PERP","pair":"BTCUSD","markPrice":"18818.14711725","indexPrice":"18816.79090909","estimatedSettlePrice":"18838.22532679","lastFundingRate":"0.00010000","interestRate":"0.00010000","nextFundingTime":1606896000000,"time":1606874737000}
+    global PRICE
     data = sess.get("https://dapi.binance.com/dapi/v1/premiumIndex").json()
     data = [i for i in data if i["symbol"].endswith("_PERP")]
+    for i in data:
+        PRICE["b"+i["pair"].replace("USD","")] = Decimal(i["markPrice"])
     return {i["pair"]: [Decimal(i["lastFundingRate"]),i] for i in data}
 
 def binance_fundingRate(pair):
@@ -171,6 +174,29 @@ def binance_markPriceKlines(pair):
     #data = [i for i in data if i[0]%28800==0]
     #return [Decimal(i[1]) for i in data][::-1]
     return {i[0]//1000: Decimal(i[1]) for i in data}
+
+@lru_cache()
+def binance_openInterest(pair):
+    data = sess.get("https://dapi.binance.com/dapi/v1/openInterest?symbol="+pair+"_PERP").json()
+    return int(data["openInterest"])
+
+def binance_getdata(coin):
+    # 返回 [资金费率历史列表, 资金费率收取是的价格列表, 本次预测, 下一次0]
+    pair = coin+"USD"
+    binance_openInterest(pair)
+    frhistory = binance_fundingRate(pair)
+    klines = binance_markPriceKlines(pair)
+    next1 = binance_premiumIndex()[pair][0]
+    next2 = 0
+    
+    data = []
+    settle = []
+    for ts, fr in frhistory:
+        if ts not in klines:
+            continue
+        data.append(fr)
+        settle.append(klines[ts])
+    return [data, settle, next1, next2]
 
 if __name__ == "__main__":
     from pprint import pprint
@@ -210,23 +236,25 @@ if __name__ == "__main__":
     linear_swap_index = linear_get("linear_swap_index")
     linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
     
-    bCOINS = binance_premiumIndex()
-    bCOINS_history = {i:binance_fundingRate(i) for i in bCOINS}
+    bCOINS = ["b"+i.replace("USD","") for i in binance_premiumIndex().keys()]
     
-    print(ALLCOINS, linear_ALLCOINS)
+    coin_series = ALLCOINS+linear_ALLCOINS+bCOINS
+    
+    print(coin_series)
     pprint(swap_index)
     pprint(linear_swap_index)
     threads = []
-    for coin in ALLCOINS+linear_ALLCOINS:
+    for coin in coin_series:
         th = threading.Thread(target=getdata, args=[coin])
         th.start()
         threads.append(th)
     [th.join() for t in threads]
     
-    swap_open_interest = {i["symbol"]:int(i["volume"]) for i in get("swap_open_interest")}
-    swap_open_interest.update({"u"+i["symbol"]:int(i["volume"]) for i in linear_get("linear_swap_open_interest")})
+    swap_open_interest = {i["symbol"]:int(i["volume"])*(10 if i["symbol"]!="BTC" else 100) for i in get("swap_open_interest")}
+    swap_open_interest.update({"u"+i["symbol"]:int(i['value']) for i in linear_get("linear_swap_open_interest")})
+    swap_open_interest.update({i:binance_openInterest(i[1:]+"USD")*(10 if i!="bBTC" else 100) for i in bCOINS})
     
-    for coin in ALLCOINS+linear_ALLCOINS:
+    for coin in coin_series:
         try:
             t.append([
                 coin+(" " if len(coin)==3 else ""), 
@@ -236,12 +264,13 @@ if __name__ == "__main__":
                 calcprofit(coin,7), 
                 calcprofit(coin,30), 
                 "%.2f%%"%increase[coin],
-                str(round(PRICE[coin],6)).rstrip("0"), 
-                number2chinese(swap_open_interest[coin]*(10 if coin!="BTC" else 100)),
+                str(round(PRICE[coin],4)).rstrip("0"), 
+                number2chinese(swap_open_interest[coin]),
                 getdata(coin)[2]+getdata(coin)[3], #预测收益 用于默认排序
             ])
         except Exception as e:
             print("error:", coin, e)
+            traceback.print_exc()
             pass
     t.sort(key=lambda i:i[-1], reverse=True)
     html = """<!doctype html><meta charset="utf-8">\n当前USDT价格：%s 数据更新时间：%s <a onclick="loadbtctable()" oncontextmenu="triggerrefresh();return false">触发更新</a><br>
