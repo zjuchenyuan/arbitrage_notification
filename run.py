@@ -1,4 +1,4 @@
-COINLIST=['DOT','MKR','BTM','IOST','ZEC','KSM','ATOM','XTZ','bETH','bTRX','bDOT','bFIL','QTUM','STORJ','ONT','ETC','LTC','bETC']
+COINLIST=['DOT','MKR','BTM','XRP','IOST','KSM','ZEC','bETH','bTRX','bDOT','bFIL', 'BCH','QTUM','STORJ','ONT','ETC','LTC','bETC','oCRV','oONT']
 import requests, os, sys, time, pickle, io, traceback
 from decimal import Decimal
 from functools import lru_cache
@@ -328,7 +328,7 @@ if __name__ == "__main__":
         html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
     if hasless30:
-        html += "<blockquote>* 这些币种上线不足30日, u-USDT本位, b-币安币本位, o-OKex币本位</blockquote>"
+        html += "<blockquote>* 这些币种上线不足30日; u-USDT本位, b-币安币本位, o-OKex币本位</blockquote>"
     print(html)
     html+= """<script>function triggerrefresh(){location.href="https://blog.chenyuan.me/Bitcoin/?refresh#_3"}</script>"""
     if os.environ.get("UPYUN_POLICY", False):
