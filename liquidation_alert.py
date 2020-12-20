@@ -1,4 +1,6 @@
-import requests
+#!/usr/bin/python3
+import requests, time
+print("time:", time.strftime("%Y%m%d %H%M%S"))
 from decimal import Decimal
 pricedata = {i["symbol"]:Decimal(i["price"]) for i in requests.get("https://api.binance.com/api/v3/ticker/price").json()}
 from config import WATCHER_UP, WATCHER_DOWN, send
