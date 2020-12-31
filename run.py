@@ -1,4 +1,4 @@
-COINLIST=['DOT','BTM','XRP','IOST','KSM','ZEC','bETH','bTRX','bDOT','bFIL', 'BCH','QTUM','STORJ','ONT','ETC','LTC','bETC','oCRV','oONT','oIOST']
+COINLIST=set(['DOT','BTM','IOST','KSM','ZEC','BCH','QTUM','STORJ','ONT','ETC','LTC','bETH','bTRX','bDOT','bETC','oONT','oIOST','oDOT','LTC', 'oETH', 'oATOM', 'oDASH', 'oDOT', 'oIOST', 'bLTC', 'bDOT', 'bETH'])
 import requests, os, sys, time, pickle, io, traceback
 from decimal import Decimal
 from functools import lru_cache
