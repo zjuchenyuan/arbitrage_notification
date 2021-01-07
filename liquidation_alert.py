@@ -10,5 +10,6 @@ for flag, data in {1:WATCHER_UP, -1:WATCHER_DOWN}.items():
         nowprice = pricedata[coin.upper()+"USDT"]
         diff = flag*(price-nowprice)/nowprice
         print(coin, str(nowprice).rstrip("0"), price, "%.2f%%"%(diff*100), note, sep="\t")
-        if diff<0.15:
+        if diff<0.1:
             send(coin+" "+note+" 爆仓预警", str(nowprice).rstrip("0")+"->"+str(price)+" "+"%.2f%%"%(diff*100))
+
