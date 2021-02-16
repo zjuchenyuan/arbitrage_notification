@@ -19,10 +19,10 @@ from qieman import *
 
 ht_price, bag_price = graphql_token_price("0xa042fb0e60125a4022670014ac121931e7501af4", HECO_GRAPH)
 ht_price, bags_price = graphql_token_price("0x6868d406a125eb30886a6dd6b651d81677d1f22c", HECO_GRAPH)
-if bag_price<0.7 or bags_price<150:
+if bag_price<1 or bags_price<250:
     send("bag已经暴跌", "BAG %(bag_price).3f BAGS %(bags_price).2f"%(locals()))
-if bag_price>1:
-    send("已恢复bag", "BAG %(bag_price).3f BAGS %(bags_price).2f"%(locals()))
+#if bag_price>1.1:
+#    send("已恢复bag", "BAG %(bag_price).3f BAGS %(bags_price).2f"%(locals()))
 ht_price, mdx_price = graphql_token_price("0x25d2e80cb6b86881fd7e07dd263fb79f4abe033c", HECO_GRAPH)
 if mdx_price < 2.21:
     send("mdx跌幅大于30%", "MDX %(mdx_price).3f"%(locals()))
