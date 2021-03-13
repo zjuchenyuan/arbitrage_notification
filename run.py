@@ -253,6 +253,7 @@ if __name__ == "__main__":
     text = "USDT: "+USDTPRICE+"\n币种| 昨日 | 预测 |7日年化\n"
     t = []
     for coin in COINLIST:
+      try:
         t.append([" | ".join(
             [
                 coin+(" " if len(coin)==3 else ""),
@@ -262,6 +263,9 @@ if __name__ == "__main__":
             ]), 
             calcprofit(coin,1, yearly=False, returndata=True),
         ])
+      except Exception as e:
+        print("error:", coin, e)
+        continue
     t.sort(key=lambda i:i[1])
     text += "\n".join([i[0] for i in t])
     text = text.replace("\n","\n\n")
@@ -273,11 +277,17 @@ if __name__ == "__main__":
     t = []
     #print(PRICE)
     
-    swap_index = get("swap_index")
-    ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
+    try:
+        swap_index = get("swap_index")
+        ALLCOINS = [i["contract_code"].replace("-USD","") for i in swap_index if i["contract_code"].endswith("-USD")]
+    except:
+        ALLCOINS = []
     
-    linear_swap_index = linear_get("linear_swap_index")
-    linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
+    try:
+        linear_swap_index = linear_get("linear_swap_index")
+        linear_ALLCOINS = ["u"+i["contract_code"].replace("-USDT","") for i in linear_swap_index if i["contract_code"].endswith("-USDT")]
+    except:
+        linear_ALLCOINS = []
     
     bCOINS = ["b"+i.replace("USD","") for i in binance_premiumIndex().keys()]
     oCOINS = ["o"+i["instrument_id"].split("-")[0] for i in okex_instruments() if i["instrument_id"].endswith("-USD-SWAP")]
@@ -294,16 +304,29 @@ if __name__ == "__main__":
         threads.append(th)
     [th.join() for t in threads]
     
-    swap_open_interest = {i["symbol"]:int(i["volume"])*(10 if i["symbol"]!="BTC" else 100) for i in get("swap_open_interest")}
-    swap_open_interest.update({"u"+i["symbol"]:int(i['value']) for i in linear_get("linear_swap_open_interest")})
-    swap_open_interest.update({i:binance_openInterest(i[1:]+"USD")*(10 if i!="bBTC" else 100) for i in bCOINS})
-    swap_open_interest.update({i:okex_open_interest(i[1:])*(10 if i!="oBTC" else 100) for i in oCOINS})
-    
+    swap_open_interest = {}
+    try:
+        swap_open_interest.update({i["symbol"]:int(i["volume"])*(10 if i["symbol"]!="BTC" else 100) for i in get("swap_open_interest")})
+    except Exception as e:
+        pass
+    try:
+        swap_open_interest.update({"u"+i["symbol"]:int(i['value']) for i in linear_get("linear_swap_open_interest")})
+    except Exception as e:
+        pass
+    try:
+        swap_open_interest.update({i:binance_openInterest(i[1:]+"USD")*(10 if i!="bBTC" else 100) for i in bCOINS})
+    except Exception as e:
+        pass
+    try:
+        swap_open_interest.update({i:okex_open_interest(i[1:])*(10 if i!="oBTC" else 100) for i in oCOINS})
+    except Exception as e:
+        pass
+
     for coin in coin_series:
-        price = str(round(PRICE[coin],4)).rstrip("0")
-        if int(price.split(".")[0])>10 and "." in price:
-            price = price.split(".")[0]+"."+price.split(".")[1][:2]
         try:
+            price = str(round(PRICE[coin],4)).rstrip("0")
+            if int(price.split(".")[0])>10 and "." in price:
+                price = price.split(".")[0]+"."+price.split(".")[1][:2]
             t.append([
                 coin+(" " if len(coin)==3 else ""), 
                 "%.2f‰"%(getdata(coin)[2]*1000), 
