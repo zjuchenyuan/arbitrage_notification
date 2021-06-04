@@ -1,4 +1,4 @@
-COINLIST=set(['DOT','BTM','IOST','KSM','ZEC','BCH','QTUM','STORJ','ONT','ETC','LTC','bETH','bTRX','bDOT','bETC','oONT','oIOST','oDOT','LTC', 'oETH', 'oATOM', 'oDASH', 'oDOT', 'oIOST', 'bLTC', 'bDOT', 'bETH'])
+COINLIST=set(['hBAKE','DOT','BTM','IOST','KSM','ZEC','BCH','QTUM','STORJ','ONT','ETC','LTC','bETH','bTRX','bDOT','bETC','oONT','oIOST','oDOT','LTC', 'oETH', 'oATOM', 'oDASH', 'oDOT', 'oIOST', 'bLTC', 'bDOT', 'bETH'])
 import requests, os, sys, time, pickle, io, traceback, random
 from time import sleep
 from decimal import Decimal
@@ -54,6 +54,8 @@ def getdata(coin, page=1):
         return linear_getdata(coin[1:], page)
     elif coin[0]=="b":
         return binance_getdata(coin[1:])
+    elif coin[0]=="h":
+        return u_binance_getdata(coin[1:])
     elif coin[0]=="o":
         return okex_getdata(coin[1:])
     page = str(page)
@@ -76,7 +78,7 @@ def getdata(coin, page=1):
         open("__pycache__/"+coin+page, "wb").write(pickle.dumps(res))
     return res
 
-@lru_cache()
+@lru_cache(1000)
 def linear_getdata(coin, page=1):
     global warns, status, PRICE
     page = str(page)
@@ -105,8 +107,13 @@ def calcprofit(coin, days, yearly=True, returndata=False):
     data, settle = fulldata[:days*3], fullsettle[:days*3]
     if days==30: #使用30天开始和结束的结算价格计算涨幅
         increase[coin] = (settle[0]/settle[-1]-1)*100
-    profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
-    profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
+    if coin[0] in ["u", "h", "i"]: #u本位
+        coin_amount = 1/settle[-1]#1美元在开始的时候能开多少张合约
+        profit_usd = sum([k*coin_amount*settle[i] for i,k in enumerate(data)]) #每次结算的时候手里的币的usdt价值作为基础，计算获得的usdt数量
+    else: #币本位
+        profit_coin = sum([k/settle[i] for i,k in enumerate(data)]) #1美元在结算中能挣到多少币
+        profit_usd = profit_coin*settle[0] #按最近一次结算价格 这些挣到的币现在值多少USD
+        
     #print(coin, "profit_usd:", profit_usd)
     
     suffix = ""
@@ -158,45 +165,71 @@ def number2chinese(d):
         return "%.2f"%(d/100000000)+"亿"
 
 @lru_cache()
-def binance_premiumIndex():
+def binance_premiumIndex(endpoint="dapi"):
     # 币安当前的币本位合约预测资金费率和详情
     # 注意币安下一次的资金费率不像火币（本次+预测）一样固定 而是到结算时才能确定（本次就是预测）
     # {"BTCUSD": [Decimal(""), detail]}
     # 其中detail为原始数据：{"symbol":"BTCUSD_PERP","pair":"BTCUSD","markPrice":"18818.14711725","indexPrice":"18816.79090909","estimatedSettlePrice":"18838.22532679","lastFundingRate":"0.00010000","interestRate":"0.00010000","nextFundingTime":1606896000000,"time":1606874737000}
     global PRICE
-    data = sess.get("https://dapi.binance.com/dapi/v1/premiumIndex").json()
-    data = [i for i in data if i["symbol"].endswith("_PERP")]
+    data = sess.get("https://"+endpoint+".binance.com/"+endpoint+"/v1/premiumIndex").json()
     for i in data:
-        PRICE["b"+i["pair"].replace("USD","")] = Decimal(i["markPrice"])
-    return {i["pair"]: [Decimal(i["lastFundingRate"]),i] for i in data}
+        if endpoint=="dapi":
+            PRICE["b"+i["pair"].replace("USD","")] = Decimal(i["markPrice"])
+        else:
+            if i["symbol"].endswith("USDT"):
+                PRICE["h"+i["symbol"].replace("USDT","")] = Decimal(i["markPrice"])
+    if endpoint=="dapi":
+        return {i["pair"]: [Decimal(i["lastFundingRate"]),i] for i in data if i["symbol"].endswith("_PERP")}
+    else:
+        return {i["symbol"]: [Decimal(i["lastFundingRate"]),i] for i in data if i["symbol"].endswith("USDT")}
 
-def binance_fundingRate(pair):
+def u_binance_premiumIndex():
+    # 币安u本位 预测资金费率和详情
+    return binance_premiumIndex(endpoint="fapi")
+
+def binance_fundingRate(pair, endpoint="dapi"):
     # 币安资金费率历史
     # 注意api调用是按时间asc的， 我们需要desc的数据
     # 没有结算价格数据
     # 返回 [(时间戳, 资金费率)]
-    data = sess.get("https://dapi.binance.com/dapi/v1/fundingRate?symbol="+pair+"_PERP&limit=1000").json()
+    data = sess.get("https://"+endpoint+".binance.com/"+endpoint+"/v1/fundingRate?symbol="+pair+("_PERP" if endpoint=="dapi" else "")+"&limit=1000").json()
     return [(i["fundingTime"]//1000, Decimal(i["fundingRate"])) for i in data][::-1]
 
-def binance_markPriceKlines(pair):
+def u_binance_fundingRate(pair):
+    return binance_fundingRate(pair, endpoint="fapi")
+
+def binance_markPriceKlines(pair, endpoint="dapi"):
     # 币安标记价格K线4小时数据，返回{时间戳: 当时开盘价格}
-    data = sess.get("https://dapi.binance.com/dapi/v1/markPriceKlines?symbol="+pair+"_PERP&interval=4h&limit=1500").json()
+    data = sess.get("https://"+endpoint+".binance.com/"+endpoint+"/v1/markPriceKlines?symbol="+pair+("_PERP" if endpoint=="dapi" else "")+"&interval=4h&limit=1500").json()
     #data = [i for i in data if i[0]%28800==0]
     #return [Decimal(i[1]) for i in data][::-1]
     return {i[0]//1000: Decimal(i[1]) for i in data}
 
-@lru_cache()
-def binance_openInterest(pair):
-    data = sess.get("https://dapi.binance.com/dapi/v1/openInterest?symbol="+pair+"_PERP").json()
-    return int(data["openInterest"])
+def u_binance_markPriceKlines(pair):
+    return binance_markPriceKlines(pair, endpoint="fapi")
 
-def binance_getdata(coin):
-    # 返回 [资金费率历史列表, 资金费率收取是的价格列表, 本次预测, 下一次0]
-    pair = coin+"USD"
-    binance_openInterest(pair)
-    frhistory = binance_fundingRate(pair)
-    klines = binance_markPriceKlines(pair)
-    next1 = binance_premiumIndex()[pair][0]
+@lru_cache(1000)
+def binance_openInterest(pair, endpoint="dapi"):
+    data = sess.get("https://"+endpoint+".binance.com/"+endpoint+"/v1/openInterest?symbol="+pair+("_PERP" if endpoint=="dapi" else "")).json()
+    return float(data["openInterest"])
+
+def u_binance_openInterest(pair):
+    return binance_openInterest(pair, endpoint="fapi")
+
+def binance_getdata(coin, isu=False):
+    # 返回 [资金费率历史列表, 资金费率收取时的价格列表, 本次预测, 下一次0]
+    if isu:
+        pair = coin+"USDT"
+        u_binance_openInterest(pair)
+        frhistory = u_binance_fundingRate(pair)
+        klines = u_binance_markPriceKlines(pair)
+        next1 = u_binance_premiumIndex()[pair][0]
+    else:
+        pair = coin+"USD"
+        binance_openInterest(pair)
+        frhistory = binance_fundingRate(pair)
+        klines = binance_markPriceKlines(pair)
+        next1 = binance_premiumIndex()[pair][0]
     next2 = 0
     
     data = []
@@ -207,6 +240,9 @@ def binance_getdata(coin):
         data.append(fr)
         settle.append(klines[ts])
     return [data, settle, next1, next2]
+
+def u_binance_getdata(coin):
+    return binance_getdata(coin, isu=True)
 
 def okex_get(url):
     return sess.get("https://www.okex.com/api/swap/v3/"+url).json()
@@ -226,7 +262,7 @@ def okex_history_candles(coin):
 def okex_funding_time(coin):
     return okex_get("instruments/"+coin+"-USD-SWAP/funding_time")
 
-@lru_cache()
+@lru_cache(1000)
 def okex_open_interest(coin):
     data = okex_get("instruments/"+coin+"-USD-SWAP/open_interest")
     return int(data["amount"])
@@ -298,6 +334,7 @@ if __name__ == "__main__":
         linear_ALLCOINS = []
     
     bCOINS = ["b"+i.replace("USD","") for i in binance_premiumIndex().keys()]
+    hCOINS = ["h"+i.replace("USDT","") for i in u_binance_premiumIndex().keys() if i.endswith("USDT")]
     oCOINS = ["o"+i["instrument_id"].split("-")[0] for i in okex_instruments() if i["instrument_id"].endswith("-USD-SWAP")]
     
     coin_series = ALLCOINS+linear_ALLCOINS+bCOINS+oCOINS
@@ -364,7 +401,7 @@ if __name__ == "__main__":
         html += "<tr><td class='headcol'>" + "</td><td>".join(data[:-1]) + "</td></tr>\n"
     html += """</tbody></table>"""
     if hasless30:
-        html += "<blockquote>* 这些币种上线不足30日; u-USDT本位, b-币安币本位, o-OKex币本位</blockquote>"
+        html += "<blockquote>* 这些币种上线不足30日; 无前缀-火币币本位, u-火币u本位, b-币安币本位, h-币安u本位, o-OKex币本位</blockquote>"
     print(html)
     html+= """<script>function triggerrefresh(){location.href="https://blog.chenyuan.me/Bitcoin/?refresh#_3"}</script>"""
     if os.environ.get("UPYUN_POLICY", False):
