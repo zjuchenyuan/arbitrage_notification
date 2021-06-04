@@ -1,5 +1,6 @@
 COINLIST=set(['DOT','BTM','IOST','KSM','ZEC','BCH','QTUM','STORJ','ONT','ETC','LTC','bETH','bTRX','bDOT','bETC','oONT','oIOST','oDOT','LTC', 'oETH', 'oATOM', 'oDASH', 'oDOT', 'oIOST', 'bLTC', 'bDOT', 'bETH'])
-import requests, os, sys, time, pickle, io, traceback
+import requests, os, sys, time, pickle, io, traceback, random
+from time import sleep
 from decimal import Decimal
 from functools import lru_cache
 from dtb.config import WebhookConfig
@@ -22,11 +23,18 @@ PRICE={} #最近一次结算的USD计价价格
 hasless30 = False #是否有上线少于30天的币种
 increase = {} #30日涨幅
 
-def get(url):
-    return sess.get("https://futures.huobi.com/swap-order/x/v1/"+url, headers={"source":"web"}).json()["data"]
+def get(url, BASE="https://futures.huobi.com/swap-order/x/v1/", retry=3):
+    try:
+        x = sess.get(BASE+url, headers={"source":"web"}, timeout=5)
+        return x.json()["data"]
+    except:
+        print(x.text, x, "retry:", retry)
+        if retry:
+            sleep(random.randint(5,10))
+            return get(url, BASE=BASE, retry=retry-1)
 
 def linear_get(url):
-    return sess.get("https://futures.hbg.com/linear-swap-order/x/v1/"+url, headers={"source":"web"}).json()["data"]
+    return get(url, BASE="https://futures.hbg.com/linear-swap-order/x/v1/")
 
 from datetime import datetime, timedelta
 def d(ts):
@@ -39,7 +47,7 @@ USDTPRICEDATA=[i for i in sess.get("https://www.huobi.com/-/x/general/exchange_r
 USDTPRICE = "%.4f"%USDTPRICEDATA["rate"]
 print("USD Time:", d(USDTPRICEDATA["data_time"]), "Price:", USDTPRICE)
 
-@lru_cache()
+@lru_cache(1000)
 def getdata(coin, page=1):
     global warns, status, PRICE
     if coin[0]=="u":
@@ -245,7 +253,7 @@ if __name__ == "__main__":
     from pprint import pprint
     import threading
     threads = []
-    for coin in COINLIST:
+    for idx, coin in enumerate(COINLIST):
         t = threading.Thread(target=getdata, args=[coin])
         t.start()
         threads.append(t)
@@ -293,16 +301,20 @@ if __name__ == "__main__":
     oCOINS = ["o"+i["instrument_id"].split("-")[0] for i in okex_instruments() if i["instrument_id"].endswith("-USD-SWAP")]
     
     coin_series = ALLCOINS+linear_ALLCOINS+bCOINS+oCOINS
-    
+    random.shuffle(coin_series)
     #print(coin_series)
     #pprint(swap_index)
     #pprint(linear_swap_index)
     threads = []
-    for coin in coin_series:
+    for idx, coin in enumerate(coin_series):
         th = threading.Thread(target=getdata, args=[coin])
         th.start()
+        if idx%30==0:
+            #print("fetching", idx, coin)
+            sleep(1)
         threads.append(th)
-    [th.join() for t in threads]
+    [th.join() for th in threads]
+    #print("th finished")
     
     swap_open_interest = {}
     try:
@@ -321,6 +333,7 @@ if __name__ == "__main__":
         swap_open_interest.update({i:okex_open_interest(i[1:])*(10 if i!="oBTC" else 100) for i in oCOINS})
     except Exception as e:
         pass
+    #print("open_interest finished")
 
     for coin in coin_series:
         try:
