@@ -1,4 +1,4 @@
-COINLIST=set(['hBAKE','DOT','BTM','IOST','KSM','ZEC','BCH','QTUM','STORJ','ONT','ETC','LTC','bETH','bTRX','bDOT','bETC','oONT','oIOST','oDOT','LTC', 'oETH', 'oATOM', 'oDASH', 'oDOT', 'oIOST', 'bLTC', 'bDOT', 'bETH'])
+COINLIST=set(['hBAKE','hBNB','hFIL','DOT','KSM','BCH','COMP','FIL','KSM','DOT','AAVE','BSV','DOGE','bETH'])
 import requests, os, sys, time, pickle, io, traceback, random
 from time import sleep
 from decimal import Decimal
@@ -155,7 +155,7 @@ def calc_fullprofit_curve(coin):
     return curve
 
 def number2chinese(d):
-    n = str(d)
+    n = str(int(d))
     digits = len(n)
     if digits<=3: #123 -> "123"
         return str(n)
@@ -211,7 +211,11 @@ def u_binance_markPriceKlines(pair):
 @lru_cache(1000)
 def binance_openInterest(pair, endpoint="dapi"):
     data = sess.get("https://"+endpoint+".binance.com/"+endpoint+"/v1/openInterest?symbol="+pair+("_PERP" if endpoint=="dapi" else "")).json()
-    return float(data["openInterest"])
+    try:
+        return float(data["openInterest"])
+    except:
+        print("error binance_openInterest", pair, data)
+        return 0
 
 def u_binance_openInterest(pair):
     return binance_openInterest(pair, endpoint="fapi")
@@ -337,7 +341,7 @@ if __name__ == "__main__":
     hCOINS = ["h"+i.replace("USDT","") for i in u_binance_premiumIndex().keys() if i.endswith("USDT")]
     oCOINS = ["o"+i["instrument_id"].split("-")[0] for i in okex_instruments() if i["instrument_id"].endswith("-USD-SWAP")]
     
-    coin_series = ALLCOINS+linear_ALLCOINS+bCOINS+oCOINS
+    coin_series = ALLCOINS+linear_ALLCOINS+bCOINS+hCOINS+oCOINS
     random.shuffle(coin_series)
     #print(coin_series)
     #pprint(swap_index)
@@ -367,11 +371,21 @@ if __name__ == "__main__":
     except Exception as e:
         pass
     try:
+        swap_open_interest.update({i:u_binance_openInterest(i[1:]+"USDT")*float(PRICE[i]) for i in hCOINS})
+    except Exception as e:
+        traceback.print_exc()
+    try:
         swap_open_interest.update({i:okex_open_interest(i[1:])*(10 if i!="oBTC" else 100) for i in oCOINS})
     except Exception as e:
         pass
     #print("open_interest finished")
 
+    def showpercent(i):
+        res = "%.2f‰"%(i*1000)
+        if res == "0.00‰":
+            return "0"
+        return res
+    
     for coin in coin_series:
         try:
             price = str(round(PRICE[coin],4)).rstrip("0")
@@ -379,8 +393,8 @@ if __name__ == "__main__":
                 price = price.split(".")[0]+"."+price.split(".")[1][:2]
             t.append([
                 coin+(" " if len(coin)==3 else ""), 
-                "%.2f‰"%(getdata(coin)[2]*1000), 
-                "%.2f‰"%(getdata(coin)[3]*1000), 
+                showpercent(getdata(coin)[2]), 
+                showpercent(getdata(coin)[3]), 
                 calcprofit(coin,1, yearly=False), 
                 calcprofit(coin,7), 
                 calcprofit(coin,30), 
